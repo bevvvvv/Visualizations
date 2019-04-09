@@ -1,0 +1,58 @@
+---
+title: "April Viz Battle: April Fool data_irl threads"
+output: html_notebook
+---
+
+```{r}
+# Clean up R environment
+rm(list = ls())
+```
+
+```{r echo = FALSE}
+# Packages
+library(mdsr) # tidyverse packages
+library(rvest) # web scraping package
+library(RedditExtractoR) # Read reddit!
+```
+
+# Scrape the data
+
+## Retrieve the data
+
+```{r}
+baseDir <- 'D:/GitRepos/vizBattle/April/'
+textFile <- paste0(baseDir,'threads.txt')
+links <- read.delim(file = textFile, header = FALSE, sep = '\n')
+links <- as.character(links[[1]])
+links <- paste0(gsub(" ",'', links),'/data_irl/')
+links[1]
+```
+
+```{r}
+content <- reddit_content(links)
+```
+
+```{r}
+write.csv(content, file = paste0(baseDir,"posts.csv"))
+```
+
+## And the images...
+
+```{r}
+original <- content %>%
+  filter(structure == 1)
+for (i in 1:length(original)) {
+  download.file(original$link[i], destfile = paste0(baseDir,"/",original$author[i],".png"))
+}
+```
+
+
+
+
+
+
+
+
+
+
+
