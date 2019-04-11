@@ -33,7 +33,10 @@ with open(os.path.join(os.path.dirname(__file__),'picText.csv'), 'w') as csvFile
     writer = csv.writer(csvFile, delimiter=',')
     for key in picText:
         for i in range(len(picText[key])):
-            writer.writerow([key, picText[key][i]])
+            try:
+                writer.writerow([key, picText[key][i]])
+            except:
+                continue
                         
 
 #print(labels)
