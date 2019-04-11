@@ -13,6 +13,8 @@ rm(list = ls())
 library(mdsr) # tidyverse packages
 library(rvest) # web scraping package
 library(RedditExtractoR) # Read reddit!
+library(data.table)
+library(jsonlite)
 ```
 
 # Scrape the data
@@ -36,15 +38,35 @@ content <- reddit_content(links)
 write.csv(content, file = paste0(baseDir,"posts.csv"))
 ```
 
+```{r}
+content <- fread(file = paste0(baseDir,"posts.csv"))
+comments <- unique(content$comment)
+comments
+```
 ## And the images...
 
+I am not going to bother with gifs or videos.
 ```{r}
-original <- content %>%
-  filter(structure == 1)
-for (i in 1:length(original)) {
-  download.file(original$link[i], destfile = paste0(baseDir,"/",original$author[i],".png"))
+media <- content %>%
+  filter(grepl("(.png|.jpg)$", link))
+mediaLinks <- unique(media$link)
+mediaLinks <- mediaLinks
+mediaLinks[1:10]
+```
+
+```{r}
+for (i in 1:length(mediaLinks)) {
+  url <- mediaLinks[i]
+  tryCatch({
+    download.file(url = url,
+                destfile = paste0(baseDir,"Images/Post",i,substr(url,nchar(url)-3,nchar(url))),
+                mode = "wb", quiet = TRUE)
+  }, error=function(e){print(paste0("Could not find photo for post: ",i))})
 }
 ```
+
+
+
 
 
 
