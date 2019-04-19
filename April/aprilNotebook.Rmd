@@ -15,6 +15,9 @@ library(rvest) # web scraping package
 library(RedditExtractoR) # Read reddit!
 library(data.table)
 library(jsonlite)
+library(tidytext)
+library(wordcloud)
+library(topicmodels)
 ```
 
 # Scrape the data
@@ -22,7 +25,7 @@ library(jsonlite)
 ## Retrieve the data
 
 ```{r}
-baseDir <- 'D:/GitRepos/vizBattle/April/'
+baseDir <- 'G:/GitRepos/vizBattle/April/'
 textFile <- paste0(baseDir,'threads.txt')
 links <- read.delim(file = textFile, header = FALSE, sep = '\n')
 links <- as.character(links[[1]])
@@ -65,7 +68,124 @@ for (i in 1:length(mediaLinks)) {
 }
 ```
 
+## After Images run through google vision API
 
+```{r}
+labels <- fread(file = paste0(baseDir,"picLabel.csv"),header = FALSE)
+names(labels) <- c("postNum","label")
+head(labels)
+tail(labels)
+```
+
+### Find commons labels
+
+```{r}
+counts <- labels %>%
+  group_by(label) %>%
+  summarize(Count = n()) %>%
+  arrange(desc(Count)) %>%
+  head(30)
+counts %>%
+  ggplot(aes(x = reorder(label, Count), y = Count)) +
+  geom_bar(stat = "identity") +
+  coord_flip()
+```
+
+```{r}
+labels %>%
+  count(label) %>%
+  with(.,wordcloud(label, n, max.words = 40))
+```
+### Text more enlightening?
+
+```{r}
+texts <- fread(file = paste0(baseDir,"picText.csv"),header = FALSE)
+names(texts) <- c("postNum","text")
+texts$text <- tolower(texts$text)
+texts <- texts %>%
+  filter(!(text %in% stop_words$word)) %>%
+  filter(is.na(as.numeric(text))) %>%
+  filter(nchar(text) > 3)
+head(texts)
+tail(texts)
+
+counts <- texts %>%
+  group_by(text) %>%
+  summarize(Count = n()) %>%
+  arrange(desc(Count)) %>%
+  head(30)
+counts %>%
+  ggplot(aes(x = reorder(text, Count), y = Count)) +
+  geom_bar(stat = "identity") +
+  coord_flip()
+
+texts %>%
+  count(text) %>%
+  with(.,wordcloud(text, n, max.words = 15))
+```
+
+```{r}
+picText <- texts %>%
+  unnest_tokens(output = word, input = text) %>%
+  count(postNum, word, sort = TRUE)
+# tf-idf now (documents are posts)
+picText <- picText %>%
+  bind_tf_idf(word, postNum, n) %>%
+  filter(!(word %in% stop_words$word)) %>%
+  filter(is.na(as.numeric(word))) %>%
+  filter(nchar(word) > 2)
+head(picText,15)
+```
+
+```{r}
+picText %>%
+  filter(n > 2) %>%
+  arrange(desc(tf_idf)) %>%
+  head(15)
+```
+
+```{r}
+picText %>%
+  filter(n > 2) %>%
+  arrange(desc(tf_idf)) %>%
+  head(15) %>%
+  ggplot(aes(x = reorder(word, tf_idf), y = tf_idf)) +
+  geom_bar(stat = "identity") +
+  coord_flip()
+```
+
+## LDA
+
+```{r}
+picDTM <- picText %>%
+  cast_dtm(postNum, word, n)
+textLDA <- picDTM %>%
+  LDA(k = 3, control = list(seed = 1234))
+textLDA
+```
+
+```{r}
+textTopics <- tidy(textLDA, matrix = "beta")
+textTopics
+textTop <- textTopics %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+textTop[textTop == 1] <- "Take Your Guess"
+textTop[textTop == 2] <- "data"
+textTop[textTop == 3] <- "\"World News\""
+
+textTop %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip() +
+  ylab("Probability of appearing in topic") +
+  ggtitle("3 Topic Latent Dirichlet Allocation model of text in post image")
+```
 
 
 
